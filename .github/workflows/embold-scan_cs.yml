@@ -26,6 +26,18 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 3.0.x
+
+    # NEW STEP STARTS HERE
+    - name: Create Log Folder and Set Permissions
+      run: |
+        echo "Creating log directory..."
+        mkdir -p ./embold-log
+        
+        echo "Setting permissions to 777..."
+        chmod 777 ./embold-log
+        
+        echo "Verifying permissions..."
+        ls -ld ./embold-log
         
     - name: Embold Analyse
       run: |
