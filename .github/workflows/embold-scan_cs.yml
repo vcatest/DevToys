@@ -1,10 +1,12 @@
 name: .NET
+
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -17,7 +19,6 @@ jobs:
         apt-get update
         apt-get install curl wget libssl1.1 -y 
     
-    # NEW STEP: Install Java (OpenJDK 11 is a common, stable version)
     - name: Install Java for Embold Scanner
       run: |
         apt-get install openjdk-11-jre -y
@@ -25,9 +26,16 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 3.0.x
+        dotnet-version: 8.0.x # UPDATED: DevToys 2.0 requires .NET 8
+        
+    # NEW STEP: Build the Linux-compatible CLI project
+    # Note: Building the full .sln on Linux often fails because it includes Windows-only (WPF) projects.
+    # We target the CLI project to ensure the core logic is built and analyzed.
+    - name: Build DevToys CLI
+      run: |
+        dotnet restore src/DevToys.CLI/DevToys.CLI.csproj
+        dotnet build src/DevToys.CLI/DevToys.CLI.csproj --configuration Release
 
-    # NEW STEP STARTS HERE
     - name: Create Log Folder and Set Permissions
       run: |
         echo "Creating log directory..."
@@ -46,4 +54,4 @@ jobs:
         echo "Download and extract BrowserStack CQ Scanner done"
         curl --silent --location --request GET "${{ vars.EMBOLD_URL_CS }}/api/v1/repositories/20e887e9eb47799dc6c2a4d916641b24/scans/config/download" --header "Authorization:Bearer ${{ secrets.EMBOLD_TOKEN_CS}}" -o repository-configuration.json
         echo "Download repository configuration file done"
-        ./browserstack-codequality-scanner/bin/embold-scanner analyse -u ${{ vars.EMBOLD_URL_CS }} -t "${{ secrets.EMBOLD_TOKEN_CS }}" -r 20e887e9eb47799dc6c2a4d916641b24 -b . -d ./embold-data -c ./repository-configuration.json -v
+        ./browserstack-codequality-scanner/bin/embold-scanner.bat analyse -u ${{ vars.EMBOLD_URL_CS }} -t "${{ secrets.EMBOLD_TOKEN_CS }}" -r 20e887e9eb47799dc6c2a4d916641b24 -b . -d ./embold-data -c ./repository-configuration.json -v
