@@ -1,12 +1,10 @@
 name: .NET
-
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -19,6 +17,7 @@ jobs:
         apt-get update
         apt-get install curl wget libssl1.1 -y 
     
+    # NEW STEP: Install Java (OpenJDK 11 is a common, stable version)
     - name: Install Java for Embold Scanner
       run: |
         apt-get install openjdk-11-jre -y
@@ -26,42 +25,25 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 8.0.x
+        dotnet-version: 3.0.x
 
-    # FIXED STEP: Smart Build Strategy
-    # 1. Tries to find and build the Linux-compatible CLI project (DevToys.CLI.csproj).
-    # 2. If CLI is not found, it falls back to the Solution (.sln) but ignores errors (|| true).
-    - name: Smart Build (Target CLI to avoid macOS errors)
-      run: |
-        echo "Searching for DevToys.CLI.csproj..."
-        CLI_PROJECT=$(find . -name "DevToys.CLI.csproj" | head -n 1)
-
-        if [ -n "$CLI_PROJECT" ]; then
-          echo "Found CLI Project: $CLI_PROJECT"
-          echo "Building CLI project (Linux compatible)..."
-          dotnet restore "$CLI_PROJECT"
-          dotnet build "$CLI_PROJECT" --configuration Release
-        else
-          echo "CLI Project not found. Falling back to Solution build..."
-          SOLUTION_FILE=$(find . -name "*.sln" | head -n 1)
-          
-          # Try to install workloads just in case, but ignore failure
-          dotnet workload restore "$SOLUTION_FILE" || true
-          
-          # Restore and Build Solution, ignoring platform errors
-          echo "Restoring solution (ignoring Mac/Windows errors)..."
-          dotnet restore "$SOLUTION_FILE" || true
-          dotnet build "$SOLUTION_FILE" --configuration Release || true
-        fi
-
+    # NEW STEP STARTS HERE
     - name: Create Log Folder and Set Permissions
       run: |
+        echo "Creating log directory..."
         mkdir -p ./embold-log
+        
+        echo "Setting permissions to 777..."
         chmod 777 ./embold-log
+        
+        echo "Verifying permissions..."
+        ls -ld ./embold-log
         
     - name: Embold Analyse
       run: |
         curl ${{ vars.EMBOLD_SCANNER_URL }} -o browserstack-codequality-scanner-archive.tar.gz
         tar xvf browserstack-codequality-scanner-archive.tar.gz
+        echo "Download and extract BrowserStack CQ Scanner done"
         curl --silent --location --request GET "${{ vars.EMBOLD_URL_CS }}/api/v1/repositories/20e887e9eb47799dc6c2a4d916641b24/scans/config/download" --header "Authorization:Bearer ${{ secrets.EMBOLD_TOKEN_CS}}" -o repository-configuration.json
+        echo "Download repository configuration file done"
         ./browserstack-codequality-scanner/bin/embold-scanner analyse -u ${{ vars.EMBOLD_URL_CS }} -t "${{ secrets.EMBOLD_TOKEN_CS }}" -r 20e887e9eb47799dc6c2a4d916641b24 -b . -d ./embold-data -c ./repository-configuration.json -v
