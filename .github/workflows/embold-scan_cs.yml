@@ -27,25 +27,31 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 8.0.x
-        
-    # NEW STEP: Find .sln file and build it automatically
-    - name: Find and Build Solution
+
+    # FIXED STEP: Smart Build Strategy
+    # 1. Tries to find and build the Linux-compatible CLI project (DevToys.CLI.csproj).
+    # 2. If CLI is not found, it falls back to the Solution (.sln) but ignores errors (|| true).
+    - name: Smart Build (Target CLI to avoid macOS errors)
       run: |
-        echo "Searching for .sln files..."
-        # Find the first .sln file in the repository
-        SOLUTION_FILE=$(find . -name "*.sln" | head -n 1)
-        
-        if [ -z "$SOLUTION_FILE" ]; then
-          echo "No .sln file found! Listing all files to help debug:"
-          find . -maxdepth 3 -not -path '*/.*'
-          exit 1
+        echo "Searching for DevToys.CLI.csproj..."
+        CLI_PROJECT=$(find . -name "DevToys.CLI.csproj" | head -n 1)
+
+        if [ -n "$CLI_PROJECT" ]; then
+          echo "Found CLI Project: $CLI_PROJECT"
+          echo "Building CLI project (Linux compatible)..."
+          dotnet restore "$CLI_PROJECT"
+          dotnet build "$CLI_PROJECT" --configuration Release
         else
-          echo "Found solution file: $SOLUTION_FILE"
-          echo "Building..."
-          # We add '|| true' because Windows projects (UWP/WPF) often fail to build on Linux.
-          # This allows the workflow to continue to the Embold Analysis step.
-          dotnet restore "$SOLUTION_FILE"
-          dotnet build "$SOLUTION_FILE" --configuration Release || echo "Build failed (likely platform mismatch), but proceeding to analysis..."
+          echo "CLI Project not found. Falling back to Solution build..."
+          SOLUTION_FILE=$(find . -name "*.sln" | head -n 1)
+          
+          # Try to install workloads just in case, but ignore failure
+          dotnet workload restore "$SOLUTION_FILE" || true
+          
+          # Restore and Build Solution, ignoring platform errors
+          echo "Restoring solution (ignoring Mac/Windows errors)..."
+          dotnet restore "$SOLUTION_FILE" || true
+          dotnet build "$SOLUTION_FILE" --configuration Release || true
         fi
 
     - name: Create Log Folder and Set Permissions
