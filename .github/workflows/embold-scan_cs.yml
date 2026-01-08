@@ -28,23 +28,28 @@ jobs:
       with:
         dotnet-version: 8.0.x
         
-    # NEW STEP: Debug file structure
-    # This will print all .csproj and .sln files to the log so you can see where they are
-    - name: List Project Files (Debug info)
-      run: find . -name "*.csproj" -o -name "*.sln"
-
-    # UPDATED STEP: Build the Solution file instead of a specific project
-    # We use '|| true' on the build step. 
-    # Why? If you have Windows-only projects (UWP) in the solution, they will fail on Linux.
-    # We allow the build to 'fail' gracefully so Embold can still attempt to scan the code.
-    - name: Restore and Build Solution
+    # NEW STEP: Find .sln file and build it automatically
+    - name: Find and Build Solution
       run: |
-        dotnet restore DevToys.sln
-        dotnet build DevToys.sln --configuration Release || echo "Build failed, but proceeding to analysis..."
+        echo "Searching for .sln files..."
+        # Find the first .sln file in the repository
+        SOLUTION_FILE=$(find . -name "*.sln" | head -n 1)
+        
+        if [ -z "$SOLUTION_FILE" ]; then
+          echo "No .sln file found! Listing all files to help debug:"
+          find . -maxdepth 3 -not -path '*/.*'
+          exit 1
+        else
+          echo "Found solution file: $SOLUTION_FILE"
+          echo "Building..."
+          # We add '|| true' because Windows projects (UWP/WPF) often fail to build on Linux.
+          # This allows the workflow to continue to the Embold Analysis step.
+          dotnet restore "$SOLUTION_FILE"
+          dotnet build "$SOLUTION_FILE" --configuration Release || echo "Build failed (likely platform mismatch), but proceeding to analysis..."
+        fi
 
     - name: Create Log Folder and Set Permissions
       run: |
-        echo "Creating log directory..."
         mkdir -p ./embold-log
         chmod 777 ./embold-log
         
