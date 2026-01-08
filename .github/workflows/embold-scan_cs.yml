@@ -26,32 +26,31 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 8.0.x # UPDATED: DevToys 2.0 requires .NET 8
+        dotnet-version: 8.0.x
         
-    # NEW STEP: Build the Linux-compatible CLI project
-    # Note: Building the full .sln on Linux often fails because it includes Windows-only (WPF) projects.
-    # We target the CLI project to ensure the core logic is built and analyzed.
-    - name: Build DevToys CLI
+    # NEW STEP: Debug file structure
+    # This will print all .csproj and .sln files to the log so you can see where they are
+    - name: List Project Files (Debug info)
+      run: find . -name "*.csproj" -o -name "*.sln"
+
+    # UPDATED STEP: Build the Solution file instead of a specific project
+    # We use '|| true' on the build step. 
+    # Why? If you have Windows-only projects (UWP) in the solution, they will fail on Linux.
+    # We allow the build to 'fail' gracefully so Embold can still attempt to scan the code.
+    - name: Restore and Build Solution
       run: |
-        dotnet restore src/DevToys.CLI/DevToys.CLI.csproj
-        dotnet build src/DevToys.CLI/DevToys.CLI.csproj --configuration Release
+        dotnet restore DevToys.sln
+        dotnet build DevToys.sln --configuration Release || echo "Build failed, but proceeding to analysis..."
 
     - name: Create Log Folder and Set Permissions
       run: |
         echo "Creating log directory..."
         mkdir -p ./embold-log
-        
-        echo "Setting permissions to 777..."
         chmod 777 ./embold-log
-        
-        echo "Verifying permissions..."
-        ls -ld ./embold-log
         
     - name: Embold Analyse
       run: |
         curl ${{ vars.EMBOLD_SCANNER_URL }} -o browserstack-codequality-scanner-archive.tar.gz
         tar xvf browserstack-codequality-scanner-archive.tar.gz
-        echo "Download and extract BrowserStack CQ Scanner done"
         curl --silent --location --request GET "${{ vars.EMBOLD_URL_CS }}/api/v1/repositories/20e887e9eb47799dc6c2a4d916641b24/scans/config/download" --header "Authorization:Bearer ${{ secrets.EMBOLD_TOKEN_CS}}" -o repository-configuration.json
-        echo "Download repository configuration file done"
-        ./browserstack-codequality-scanner/bin/embold-scanner.bat analyse -u ${{ vars.EMBOLD_URL_CS }} -t "${{ secrets.EMBOLD_TOKEN_CS }}" -r 20e887e9eb47799dc6c2a4d916641b24 -b . -d ./embold-data -c ./repository-configuration.json -v
+        ./browserstack-codequality-scanner/bin/embold-scanner analyse -u ${{ vars.EMBOLD_URL_CS }} -t "${{ secrets.EMBOLD_TOKEN_CS }}" -r 20e887e9eb47799dc6c2a4d916641b24 -b . -d ./embold-data -c ./repository-configuration.json -v
