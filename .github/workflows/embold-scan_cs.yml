@@ -54,4 +54,4 @@ jobs:
       with:
         name: logs-and-bins
         path: |
-          /__w/DevToys/DevToys/embold-data/**/*.xml
+          /__w/DevToys/DevToys/embold-data/**/*.txt
