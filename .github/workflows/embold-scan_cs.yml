@@ -47,3 +47,10 @@ jobs:
         curl --silent --location --request GET "${{ vars.EMBOLD_URL_CS }}/api/v1/repositories/20e887e9eb47799dc6c2a4d916641b24/scans/config/download" --header "Authorization:Bearer ${{ secrets.EMBOLD_TOKEN_CS}}" -o repository-configuration.json
         echo "Download repository configuration file done"
         ./browserstack-codequality-scanner/bin/embold-scanner analyse -u ${{ vars.EMBOLD_URL_CS }} -t "${{ secrets.EMBOLD_TOKEN_CS }}" -r 20e887e9eb47799dc6c2a4d916641b24 -b . -d ./embold-data -c ./repository-configuration.json -v
+
+    - name: Archive logs and binaries
+      uses: actions/upload-artifact@v4
+      with:
+        name: logs-and-bins
+        path: |
+          embold-data/**/*.xml
